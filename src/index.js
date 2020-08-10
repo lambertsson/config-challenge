@@ -40,6 +40,7 @@ const load_config = (path, overrides = []) => {
     let config = {};
     let currentGroupKey = "";
     try {
+      let undecidedOverrides = [];
       rawLines.forEach((line) => {
         if (groupKeyRegExp.test(line)) {
           currentGroupKey = line.match(groupKeyRegExp)[1];
@@ -50,12 +51,13 @@ const load_config = (path, overrides = []) => {
           if (isEmptyLine(lineWithoutComment)) return;
 
           const settings = lineWithoutComment.match(settingsRegExp);
+
           settings.forEach((settingString) => {
             if (hasOverride(settingString)) {
               const settingObject = getOverrideSettingObject(settingString);
               const isOverrideEnabled = overrides.includes(settingObject.override);
               if (isOverrideEnabled) {
-                config[currentGroupKey][settingObject.key] = settingObject.value;
+                undecidedOverrides.push({ groupKey: currentGroupKey, ...settingObject });
               }
             } else {
               const settingObject = getSettingObject(settingString);
@@ -63,6 +65,20 @@ const load_config = (path, overrides = []) => {
             }
           });
         }
+      });
+
+      // Decide what override value to use (might be several, but only with with highest priority)
+      undecidedOverrides.forEach((setting) => {
+        const settingsForSameGroupAndKey = undecidedOverrides.filter(
+          (undecidedSetting) =>
+            undecidedSetting.key === setting.key &&
+            undecidedSetting.groupKey === setting.groupKey &&
+            undecidedSetting.override !== setting.override
+        );
+        const hasHighestPriority = settingsForSameGroupAndKey.every(
+          (otherSetting) => overrides.indexOf(setting.override) > overrides.indexOf(otherSetting.override)
+        );
+        if (hasHighestPriority) config[setting.groupKey][setting.key] = setting.value;
       });
     } catch (error) {
       console.log("Could not parse config file", error);
@@ -72,4 +88,4 @@ const load_config = (path, overrides = []) => {
   });
 };
 
-load_config("../configs/example.conf");
+load_config("../configs/example.conf", ["production", "staging"]);
