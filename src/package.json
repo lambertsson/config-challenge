@@ -1,0 +1,11 @@
+{
+  "name": "config-challenge",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:lambertsson/config-challenge.git",
+  "author": "Christoffer Lambertsson <github@lambertsson.me>",
+  "license": "MIT",
+  "dependencies": {
+    "jest": "^26.2.2"
+  }
+}
