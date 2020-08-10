@@ -1,59 +1,73 @@
 const fs = require("fs");
 
+const newLineRegExp = new RegExp(/\n/);
+const groupKeyRegExp = new RegExp(/\[(.+)\]/);
+const overrideRegExp = new RegExp(/\<(.+)\>/);
+const overrideKeyRegExp = new RegExp(/(\S+)\</);
+const settingsRegExp = new RegExp(/(\S+.=.\S+)/, "g");
+
 const isEmptyLine = (string) => string === "";
 const removeComment = (string) => string.split(";")[0];
-const isSingleSettingsValue = (string) => string.indexOf("=") === string.lastIndexOf("=");
+const hasOverride = (string) => overrideRegExp.test(string);
 
-const getKeyValuePair = (line) => {
-  const pair = line.split("=");
+const getSettingObject = (settingString) => {
+  const pair = settingString.split("=");
   return {
     key: pair[0].trim(),
     value: pair[1].trim(),
   };
 };
 
-const load_config = (path, overrides) => {
+const getOverrideSettingObject = (settingString) => {
+  const pair = settingString.split("=");
+  const override = pair[0].match(overrideRegExp)[1];
+  const key = pair[0].match(overrideKeyRegExp)[1];
+  return {
+    key,
+    override,
+    value: pair[1].trim(),
+  };
+};
+
+const load_config = (path, overrides = []) => {
   fs.readFile(`${__dirname}/${path}`, function (err, data) {
     if (err) {
       throw err;
     }
 
-    const rawLines = data.toString().split(/\n/);
-    const groupLineRegExp = new RegExp("\\[(.+)\\]");
-    const groupedLines = [];
+    const rawLines = data.toString().split(newLineRegExp);
 
+    let config = {};
+    let currentGroupKey = "";
     try {
       rawLines.forEach((line) => {
-        if (groupLineRegExp.test(line)) {
-          const groupName = line.match(groupLineRegExp)[1];
-          groupedLines.push({
-            name: groupName,
-            lines: [],
-          });
+        if (groupKeyRegExp.test(line)) {
+          currentGroupKey = line.match(groupKeyRegExp)[1];
+          config[currentGroupKey] = {};
         } else {
           const lineWithoutComment = removeComment(line);
-          if (!isEmptyLine(lineWithoutComment)) {
-            groupedLines[groupedLines.length - 1].lines.push(lineWithoutComment.trim());
-          }
+
+          if (isEmptyLine(lineWithoutComment)) return;
+
+          const settings = lineWithoutComment.match(settingsRegExp);
+          settings.forEach((settingString) => {
+            if (hasOverride(settingString)) {
+              const settingObject = getOverrideSettingObject(settingString);
+              const isOverrideEnabled = overrides.includes(settingObject.override);
+              if (isOverrideEnabled) {
+                config[currentGroupKey][settingObject.key] = settingObject.value;
+              }
+            } else {
+              const settingObject = getSettingObject(settingString);
+              config[currentGroupKey][settingObject.key] = settingObject.value;
+            }
+          });
         }
       });
     } catch (error) {
-      console.log("Could not group lines in config file", error);
+      console.log("Could not parse config file", error);
     }
 
-    let config = {};
-    groupedLines.forEach((group) => {
-      config[group.name] = {};
-      group.lines.forEach((settingsLine) => {
-        if (isSingleSettingsValue(settingsLine)) {
-          const settingsObject = getKeyValuePair(settingsLine);
-          config[group.name][settingsObject.key] = settingsObject.value;
-        }
-      });
-    });
-
-    console.log(groupedLines);
-    console.log("\n");
     console.log(config);
   });
 };
