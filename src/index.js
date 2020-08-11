@@ -1,14 +1,18 @@
 const fs = require("fs");
 
+const arrayRegExp = new RegExp(/,/);
 const newLineRegExp = new RegExp(/\n/);
+const numberRegExp = new RegExp(/[0-9]+/);
 const groupKeyRegExp = new RegExp(/\[(.+)\]/);
 const overrideRegExp = new RegExp(/\<(.+)\>/);
 const overrideKeyRegExp = new RegExp(/(\S+)\</);
 const settingsRegExp = new RegExp(/(\S+.=.\S+)/, "g");
+const stringRegExp = new RegExp(/"(.*)"/);
 
 const isEmptyLine = (string) => string === "";
 const removeComment = (string) => string.split(";")[0];
 const hasOverride = (string) => overrideRegExp.test(string);
+const isBoolean = (string) => string === "no" || string === "yes" || string === "true" || string === "false";
 
 const getSettingObject = (settingString) => {
   const pair = settingString.split("=");
@@ -29,63 +33,86 @@ const getOverrideSettingObject = (settingString) => {
   };
 };
 
+const parseType = (value) => {
+  if (isBoolean(value)) return value === "no" || value === "false" ? false : true;
+  else if (stringRegExp.test(value)) return value.match(stringRegExp)[1];
+  // Returns string
+  else if (arrayRegExp.test(value)) return value.split(arrayRegExp);
+  // Returns array of strings TODO: Might want to type array items individually
+  else if (numberRegExp.test(value)) return Number.parseInt(value);
+  // Returns number TODO: Might want to handle values bigger than integers
+  else return value; // Returns value without typing, eg. for paths
+};
+
 const load_config = (path, overrides = []) => {
-  fs.readFile(`${__dirname}/${path}`, function (err, data) {
-    if (err) {
-      throw err;
-    }
+  return new Promise((resolve, reject) => {
+    fs.readFile(`${__dirname}/${path}`, function (err, data) {
+      if (err) {
+        throw err;
+      }
 
-    const rawLines = data.toString().split(newLineRegExp);
+      const rawLines = data.toString().split(newLineRegExp);
 
-    let config = {};
-    let currentGroupKey = "";
-    try {
-      let undecidedOverrides = [];
-      rawLines.forEach((line) => {
-        if (groupKeyRegExp.test(line)) {
-          currentGroupKey = line.match(groupKeyRegExp)[1];
-          config[currentGroupKey] = {};
-        } else {
-          const lineWithoutComment = removeComment(line);
+      let config = {};
+      let currentGroupKey = "";
+      try {
+        let undecidedOverrides = [];
+        rawLines.forEach((line) => {
+          if (groupKeyRegExp.test(line)) {
+            currentGroupKey = line.match(groupKeyRegExp)[1];
+            config[currentGroupKey] = {};
+          } else {
+            const lineWithoutComment = removeComment(line);
 
-          if (isEmptyLine(lineWithoutComment)) return;
+            if (isEmptyLine(lineWithoutComment)) return;
 
-          const settings = lineWithoutComment.match(settingsRegExp);
+            const settings = lineWithoutComment.match(settingsRegExp);
 
-          settings.forEach((settingString) => {
-            if (hasOverride(settingString)) {
-              const settingObject = getOverrideSettingObject(settingString);
-              const isOverrideEnabled = overrides.includes(settingObject.override);
-              if (isOverrideEnabled) {
-                undecidedOverrides.push({ groupKey: currentGroupKey, ...settingObject });
+            settings.forEach((settingString) => {
+              if (hasOverride(settingString)) {
+                const settingObject = getOverrideSettingObject(settingString);
+                const isOverrideEnabled = overrides.includes(settingObject.override);
+                if (isOverrideEnabled) {
+                  undecidedOverrides.push({ groupKey: currentGroupKey, ...settingObject });
+                }
+              } else {
+                const settingObject = getSettingObject(settingString);
+                config[currentGroupKey][settingObject.key] = parseType(settingObject.value);
               }
-            } else {
-              const settingObject = getSettingObject(settingString);
-              config[currentGroupKey][settingObject.key] = settingObject.value;
-            }
-          });
-        }
-      });
+            });
+          }
+        });
 
-      // Decide what override value to use (might be several, but only with with highest priority)
-      undecidedOverrides.forEach((setting) => {
-        const settingsForSameGroupAndKey = undecidedOverrides.filter(
-          (undecidedSetting) =>
-            undecidedSetting.key === setting.key &&
-            undecidedSetting.groupKey === setting.groupKey &&
-            undecidedSetting.override !== setting.override
-        );
-        const hasHighestPriority = settingsForSameGroupAndKey.every(
-          (otherSetting) => overrides.indexOf(setting.override) > overrides.indexOf(otherSetting.override)
-        );
-        if (hasHighestPriority) config[setting.groupKey][setting.key] = setting.value;
-      });
-    } catch (error) {
-      console.log("Could not parse config file", error);
-    }
-
-    console.log(config);
+        // Decide what override value to use (might be several, but only with with highest priority)
+        undecidedOverrides.forEach((setting) => {
+          const settingsForSameGroupAndKey = undecidedOverrides.filter(
+            (undecidedSetting) =>
+              undecidedSetting.key === setting.key &&
+              undecidedSetting.groupKey === setting.groupKey &&
+              undecidedSetting.override !== setting.override
+          );
+          const hasHighestPriority = settingsForSameGroupAndKey.every(
+            (otherSetting) => overrides.indexOf(setting.override) > overrides.indexOf(otherSetting.override)
+          );
+          if (hasHighestPriority) config[setting.groupKey][setting.key] = parseType(setting.value);
+        });
+      } catch (error) {
+        reject(error);
+        console.log("Could not parse config file", error);
+      }
+      resolve(config);
+    });
   });
 };
 
-load_config("../configs/example.conf", ["production", "staging"]);
+// const start = async () => {
+//   try {
+//     await load_config("../configs/example.conf", ["production", "staging"]);
+//   } catch (error) {
+//     console.log("Could not run load_config");
+//   }
+// };
+
+// start();
+
+module.exports = { load_config };

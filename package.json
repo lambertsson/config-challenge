@@ -5,7 +5,11 @@
   "repository": "git@github.com:lambertsson/config-challenge.git",
   "author": "Christoffer Lambertsson <github@lambertsson.me>",
   "license": "MIT",
-  "dependencies": {
-    "jest": "^26.2.2"
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^26.3.0"
+  },
+  "scripts": {
+    "test": "jest --testPathPattern=.spec.js"
   }
 }
