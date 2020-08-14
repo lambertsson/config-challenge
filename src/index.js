@@ -1,4 +1,5 @@
 const fs = require("fs");
+const DEBUG = false;
 
 const arrayRegExp = new RegExp(/,/);
 const newLineRegExp = new RegExp(/\n/);
@@ -6,7 +7,7 @@ const numberRegExp = new RegExp(/[0-9]+/);
 const groupKeyRegExp = new RegExp(/\[(.+)\]/);
 const overrideRegExp = new RegExp(/\<(.+)\>/);
 const overrideKeyRegExp = new RegExp(/(\S+)\</);
-const settingsRegExp = new RegExp(/(\S+.=.\S+)/, "g");
+const settingsRegExp = new RegExp(/(\S+[ ]*=[ ]*"[^"]*"|\S+[ ]*=[ ]*[^"]\S+|\S+[ ]*=[ ]*[0-9]+)/, "g");
 const stringRegExp = new RegExp(/"(.*)"/);
 
 const isEmptyLine = (string) => string === "";
@@ -68,6 +69,8 @@ const load_config = (path, overrides = []) => {
 
             const settings = lineWithoutComment.match(settingsRegExp);
 
+            if (DEBUG) console.log("Line:", line, "gave settings:", settings);
+
             settings.forEach((settingString) => {
               if (hasOverride(settingString)) {
                 const settingObject = getOverrideSettingObject(settingString);
@@ -98,7 +101,7 @@ const load_config = (path, overrides = []) => {
         });
       } catch (error) {
         reject(error);
-        console.log("Could not parse config file", error);
+        if (DEBUG) console.log("Could not parse config file", error);
       }
       resolve(config);
     });

@@ -1,7 +1,7 @@
 const { load_config } = require("./index");
 
 describe("load_config", () => {
-  describe("should correctly load", () => {
+  describe("should correctly load config with", () => {
     test("array", async () => {
       const config = await load_config("../configs/test/array.conf");
 
@@ -55,6 +55,29 @@ describe("load_config", () => {
       const config = await load_config("../configs/test/string.conf");
 
       expect(config.group.setting).toEqual("a string");
+    });
+    test("no spaces between setting key and value", async () => {
+      const config = await load_config("../configs/test/no-space-settings.conf");
+
+      expect(config.group.setting1).toEqual(26214400);
+      expect(config.group.setting2).toEqual("a string");
+      expect(config.group.setting3).toEqual(["array", "of", "values"]);
+    });
+    test("varied spaces between setting key and value", async () => {
+      const config = await load_config("../configs/test/varied-space-settings.conf");
+
+      expect(config.group.setting1).toEqual(true);
+      expect(config.group.setting2).toEqual(true);
+      expect(config.group.setting3).toEqual(true);
+    });
+  });
+
+  describe("should fail when loading config with", () => {
+    test("incomplete setting", async () => {
+      await expect(() => load_config("../configs/test/invalid/incomplete.conf")).rejects.toThrow();
+    });
+    test("missing group before setting", async () => {
+      await expect(() => load_config("../configs/test/invalid/missing-group.conf")).rejects.toThrow();
     });
   });
 });
