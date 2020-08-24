@@ -108,14 +108,4 @@ const load_config = (path, overrides = []) => {
   });
 };
 
-// const start = async () => {
-//   try {
-//     await load_config("../configs/example.conf", ["production", "staging"]);
-//   } catch (error) {
-//     console.log("Could not run load_config");
-//   }
-// };
-
-// start();
-
 module.exports = { load_config };
